@@ -1,0 +1,9 @@
+fastmcp
+telethon
+pydantic
+pydantic-settings
+xdg-base-dirs
+typer
+rich
+pytest
+pytest-asyncio
