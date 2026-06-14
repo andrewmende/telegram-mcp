@@ -2,6 +2,7 @@ fastmcp
 telethon
 pydantic
 pydantic-settings
+python-dotenv
 xdg-base-dirs
 typer
 rich
