@@ -92,9 +92,21 @@ async def login() -> None:
 
 
 @app.command()
-def start() -> None:
-    """Start the MCP server (requires a saved session from `login`)."""
-    mcp.run()
+def start(
+    http: bool = typer.Option(False, "--http", help="Serve over streamable HTTP instead of stdio."),
+    host: str = typer.Option("127.0.0.1", "--host", help="Bind host (HTTP mode)."),
+    port: int = typer.Option(8765, "--port", help="Bind port (HTTP mode)."),
+    path: str = typer.Option("/telegram", "--path", help="HTTP endpoint path (HTTP mode)."),
+) -> None:
+    """Start the MCP server (requires a saved session from `login`).
+
+    Defaults to stdio for local MCP clients. Pass --http to serve over the
+    network (e.g. behind nginx); set MCP_TOKEN to require bearer-token auth.
+    """
+    if http:
+        mcp.run(transport="http", host=host, port=port, path=path)
+    else:
+        mcp.run()
 
 
 @app.command()
