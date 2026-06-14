@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import SecretStr
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from telethon import TelegramClient, hints, types  # type: ignore
 from telethon.sessions import StringSession  # type: ignore
 from telethon.tl import custom, functions, patched  # type: ignore
@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
     api_id: str
     api_hash: SecretStr
 

@@ -1,7 +1,6 @@
 """Telegram MTProto MCP Server."""
 
 import logging
-import os
 import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -9,6 +8,7 @@ from datetime import datetime
 
 from fastmcp import FastMCP
 from fastmcp.server.auth import AccessToken, TokenVerifier
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from models import Dialog, DownloadedMedia, Message, Messages
 from telegram import Telegram
@@ -16,6 +16,12 @@ from utils import parse_entity
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("telegram-mcp")
+
+class ServerSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    mcp_token: str | None = None
+
 
 tg = Telegram()
 
@@ -33,7 +39,7 @@ class StaticTokenVerifier(TokenVerifier):
         return AccessToken(token=token, client_id="mcp-client", scopes=[])
 
 
-_mcp_token = os.getenv("MCP_TOKEN")
+_mcp_token = ServerSettings().mcp_token
 _auth = StaticTokenVerifier(_mcp_token) if _mcp_token else None
 if _mcp_token:
     logger.info("MCP token auth enabled.")
@@ -91,7 +97,7 @@ async def send_message(
         reply_to: Message ID to reply to.
     """
     _entity = parse_entity(entity)
-    await tg.send_message(_entity, message, file_path=file_path, reply_to=reply_to)
+    await tg.send_message(_entity, f"🤖 {message}", file_path=file_path, reply_to=reply_to)
     return f"Message sent to {entity}"
 
 
