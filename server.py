@@ -1,11 +1,14 @@
 """Telegram MTProto MCP Server."""
 
 import logging
+import os
+import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime
 
 from fastmcp import FastMCP
+from fastmcp.server.auth import AccessToken, TokenVerifier
 
 from models import Dialog, DownloadedMedia, Message, Messages
 from telegram import Telegram
@@ -15,6 +18,27 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("telegram-mcp")
 
 tg = Telegram()
+
+
+class StaticTokenVerifier(TokenVerifier):
+    """Accepts a single static bearer token read from MCP_TOKEN env var."""
+
+    def __init__(self, token: str) -> None:
+        super().__init__()
+        self._token = token
+
+    async def verify_token(self, token: str) -> AccessToken | None:
+        if not secrets.compare_digest(token, self._token):
+            return None
+        return AccessToken(token=token, client_id="mcp-client", scopes=[])
+
+
+_mcp_token = os.getenv("MCP_TOKEN")
+_auth = StaticTokenVerifier(_mcp_token) if _mcp_token else None
+if _mcp_token:
+    logger.info("MCP token auth enabled.")
+else:
+    logger.warning("MCP_TOKEN not set — server is unauthenticated.")
 
 
 @asynccontextmanager
@@ -32,6 +56,7 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[None]:
 mcp = FastMCP(
     name="telegram-mcp",
     lifespan=app_lifespan,
+    auth=_auth,
     instructions=(
         "Telegram MTProto MCP Server. "
         "Communicates with Telegram as a full user account (not a bot) via the MTProto protocol using Telethon. "
@@ -180,6 +205,17 @@ async def set_draft(entity: str, message: str) -> str:
 
 
 # ========================== DIALOGS ==========================
+
+
+@mcp.tool()
+async def get_unread_dialogs() -> list[Dialog]:
+    """Return dialogs that have unread messages, sorted newest-first by last message date.
+
+    Scans the 200 most recent dialogs and returns all unread ones.
+    Each Dialog has: id, title, username, phone_number,
+    type (user/bot/group/channel), unread_messages_count, can_send_message.
+    """
+    return await tg.get_unread_dialogs()
 
 
 @mcp.tool()

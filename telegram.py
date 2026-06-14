@@ -46,6 +46,10 @@ class Telegram:
     def session_file(self) -> Path:
         return self._session_file
 
+    async def ensure_connected(self) -> None:
+        if not self.client.is_connected():
+            await self.client.connect()
+
     def create_client(self, api_id: str | None = None, api_hash: str | None = None) -> TelegramClient:
         if self._client is not None:
             return self._client
@@ -85,6 +89,7 @@ class Telegram:
         file_path: list[str] | None = None,
         reply_to: int | None = None,
     ) -> None:
+        await self.ensure_connected()
         if file_path:
             for path in file_path:
                 p = Path(path)
@@ -99,9 +104,11 @@ class Telegram:
         )
 
     async def edit_message(self, entity: str | int, message_id: int, message: str) -> None:
+        await self.ensure_connected()
         await self.client.edit_message(entity, message_id, message)
 
     async def delete_message(self, entity: str | int, message_ids: list[int]) -> None:
+        await self.ensure_connected()
         await self.client.delete_messages(entity, message_ids)
 
     async def get_messages(
@@ -122,6 +129,7 @@ class Telegram:
         if end_date.tzinfo is None:
             end_date = end_date.replace(tzinfo=timezone.utc)
 
+        await self.ensure_connected()
         _entity = await self.client.get_entity(entity)
         assert isinstance(_entity, hints.Entity)
         dialog = Dialog.from_entity(_entity)
@@ -153,11 +161,13 @@ class Telegram:
     # ------------------------------------------------------------------ #
 
     async def get_draft(self, entity: str | int) -> str:
+        await self.ensure_connected()
         draft = await self.client.get_drafts(entity)
         assert isinstance(draft, custom.Draft)
         return draft.text if isinstance(draft.text, str) else ""  # type: ignore
 
     async def set_draft(self, entity: str | int, message: str) -> None:
+        await self.ensure_connected()
         peer_id = await self.client.get_peer_id(entity)
         draft = await self.client.get_drafts(peer_id)
         assert isinstance(draft, custom.Draft)
@@ -168,6 +178,7 @@ class Telegram:
     # ------------------------------------------------------------------ #
 
     async def download_media(self, entity: str | int, message_id: int, path: str | None = None) -> DownloadedMedia:
+        await self.ensure_connected()
         message = await self.client.get_messages(entity, ids=message_id)  # type: ignore
         if not message or not isinstance(message, patched.Message):
             raise ValueError(f"Message {message_id} not found in {entity}.")
@@ -190,6 +201,7 @@ class Telegram:
     # ------------------------------------------------------------------ #
 
     async def search_dialogs(self, query: str, limit: int, global_search: bool = False) -> list[Dialog]:
+        await self.ensure_connected()
         if not query:
             raise ValueError("Query cannot be empty.")
         if limit <= 0:
@@ -239,11 +251,25 @@ class Telegram:
             logger.warning(f"Failed to get permissions for {entity}: {exc}")
             return False
 
+    async def get_unread_dialogs(self) -> list[Dialog]:
+        await self.ensure_connected()
+        results: list[Dialog] = []
+        async for dialog in self.client.iter_dialogs(limit=200):
+            if dialog.unread_count == 0:
+                continue
+            can_send = await self._can_send_message(dialog.entity)
+            try:
+                results.append(Dialog.from_dialog(dialog, can_send))
+            except Exception as exc:
+                logger.warning(f"Failed to build dialog for {dialog.entity}: {exc}")
+        return results
+
     # ------------------------------------------------------------------ #
     # Links                                                                #
     # ------------------------------------------------------------------ #
 
     async def message_from_link(self, link: str) -> Message:
+        await self.ensure_connected()
         parsed = parse_telegram_url(link)
         if parsed is None:
             raise ValueError(f"Could not parse a valid Telegram message link: {link}")

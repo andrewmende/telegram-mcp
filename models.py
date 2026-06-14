@@ -46,6 +46,19 @@ class Dialog(BaseModel):
             can_send_message=can_send_message,
         )
 
+    @staticmethod
+    def from_dialog(dialog: custom.Dialog, can_send_message: bool = False) -> "Dialog":
+        entity = dialog.entity
+        return Dialog(
+            id=utils.get_peer_id(entity),  # type: ignore
+            title=utils.get_display_name(entity),  # type: ignore
+            type=Dialog.get_dialog_type(entity),
+            username=entity.username if not isinstance(entity, types.Chat) else None,
+            phone_number=entity.phone if isinstance(entity, types.User) else None,
+            unread_messages_count=dialog.unread_count,
+            can_send_message=can_send_message,
+        )
+
 
 class Media(BaseModel):
     media_id: int
